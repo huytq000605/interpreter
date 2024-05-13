@@ -7,6 +7,7 @@ pub enum Token {
     Product,
     Division,
     Semicolon,
+		Equal,
     If,
     Else,
     Return,
@@ -37,6 +38,7 @@ impl Lexer {
             '-' => Token::Minus,
             '*' => Token::Product,
             '/' => Token::Division,
+						'=' => Token::Equal,
             ';' => Token::Semicolon,
             '\0' => Token::Eof,
             _ => {
