@@ -1,6 +1,16 @@
 mod tokenizer;
-mod tokenizer_test;
+
+use tokenizer::lexer::{Lexer, Token};
 
 fn main() {
-    println!("{:?}", '\0'.is_ascii_alphabetic())
+    let mut lexer = Lexer::new("let a = 5;");
+    loop {
+        let token = lexer.next_token();
+        if token == Token::Eof {
+            break;
+        }
+        println!("{:?}", token);
+    }
+
+    return;
 }
