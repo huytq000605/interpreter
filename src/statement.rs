@@ -1,3 +1,5 @@
+use crate::token::Token;
+
 #[derive(Debug, PartialEq)]
 pub enum Statement {
     Let(LetStatement),
@@ -31,6 +33,7 @@ pub struct PrefixExpression {
 
 #[derive(Debug, PartialEq)]
 pub struct InflixExpression {
+    pub operator: Token,
     pub left: Box<ExpressionStatement>,
     pub right: Box<ExpressionStatement>,
 }

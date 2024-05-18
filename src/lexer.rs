@@ -108,7 +108,11 @@ impl Lexer {
         };
 
         self.read_char();
-        while self.cur_char == ' ' || self.cur_char == '\t' || self.cur_char == '\r' || self.cur_char == '\n' {
+        while self.cur_char == ' '
+            || self.cur_char == '\t'
+            || self.cur_char == '\r'
+            || self.cur_char == '\n'
+        {
             self.read_char();
         }
         return token;
@@ -138,6 +142,8 @@ impl Lexer {
             "if" => Token::If,
             "else" => Token::Else,
             "return" => Token::Return,
+            "true" => Token::True,
+            "false" => Token::False,
             _ => Token::Ident(literal.to_string()),
         }
     }
@@ -187,6 +193,17 @@ mod test {
                     Token::Ident("x".to_string()),
                     Token::Assign,
                     Token::Num(5 as f64),
+                ],
+            },
+            Testcase {
+                input: "let a = 5+6".to_string(),
+                expected: vec![
+                    Token::Let,
+                    Token::Ident("a".to_string()),
+                    Token::Assign,
+                    Token::Num(5 as f64),
+                    Token::Plus,
+                    Token::Num(6 as f64),
                 ],
             },
         ];

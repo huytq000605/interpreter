@@ -1,4 +1,4 @@
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Token {
     Eof,
     Illegal,
@@ -31,4 +31,6 @@ pub enum Token {
 
     Ident(String),
     Num(f64),
+    True,
+    False,
 }
