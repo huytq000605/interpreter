@@ -1,23 +1,36 @@
-#[derive(PartialEq, Debug)]
-pub enum Kind {
-	LetStatement
+#[derive(Debug, PartialEq)]
+pub enum Statement {
+    Let(LetStatement),
+    Return(ReturnStatement),
+    Expression(ExpressionStatement),
 }
 
-pub trait Statement {
-	fn kind(&self) -> Kind;
-}
-
+#[derive(Debug, PartialEq)]
 pub struct LetStatement {
-	pub literal: String,
-	pub expression: Option<Expression>
+    pub identifier: String,
+    pub value: Option<ExpressionStatement>,
 }
 
-impl Statement for LetStatement {
-	fn kind(&self) -> Kind {
-			return Kind::LetStatement
-	}
+#[derive(Debug, PartialEq)]
+pub struct ReturnStatement {
+    pub value: Option<ExpressionStatement>,
 }
 
-pub struct Expression {
+#[derive(Debug, PartialEq)]
+pub enum ExpressionStatement {
+    Prefix(PrefixExpression),
+    Infix(InflixExpression),
+    Identifier(String),
+    Num(f64),
+}
 
+#[derive(Debug, PartialEq)]
+pub struct PrefixExpression {
+    pub right: Box<ExpressionStatement>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct InflixExpression {
+    pub left: Box<ExpressionStatement>,
+    pub right: Box<ExpressionStatement>,
 }

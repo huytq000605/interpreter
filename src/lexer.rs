@@ -31,7 +31,7 @@ impl Lexer {
                 } else {
                     Token::Assign
                 }
-            },
+            }
             '!' => {
                 if self.peek_char() == '=' {
                     self.read_char();
@@ -39,7 +39,23 @@ impl Lexer {
                 } else {
                     Token::Bang
                 }
-            },
+            }
+            '>' => {
+                if self.peek_char() == '=' {
+                    self.read_char();
+                    Token::Gte
+                } else {
+                    Token::Gt
+                }
+            }
+            '<' => {
+                if self.peek_char() == '=' {
+                    self.read_char();
+                    Token::Lte
+                } else {
+                    Token::Lt
+                }
+            }
 
             ',' => Token::Comma,
             ';' => Token::Semicolon,
@@ -50,13 +66,9 @@ impl Lexer {
 
             '1'..='9' => {
                 let mut num = String::from(self.cur_char);
-                let mut is_float = false;
                 loop {
                     let next_char = self.peek_char();
                     if next_char.is_alphanumeric() || next_char == '.' {
-                        if next_char == '.' {
-                            is_float = true;
-                        }
                         num.push(next_char);
                         self.read_char();
                     } else {
@@ -65,31 +77,24 @@ impl Lexer {
                 }
 
                 let token: Token;
-                if is_float {
-                    match num.parse() {
-                        Ok(f) => token = Token::Float(f),
-                        Err(e) => {
-                            eprintln!("parse float error = {e}");
-                            token = Token::Illegal
-                        }
-                    }
-                } else {
-                    match num.parse() {
-                        Ok(i) => token = Token::Int(i),
-                        Err(e) => {
-                            eprintln!("parse int error = {e}");
-                            token = Token::Illegal
-                        }
+                match num.parse() {
+                    Ok(f) => token = Token::Num(f),
+                    Err(e) => {
+                        eprintln!("parse float error = {e}");
+                        token = Token::Illegal
                     }
                 }
 
                 token
             }
-            _ => {
+            'a'..='z' | 'A'..='Z' => {
                 let mut literal = String::from(self.cur_char);
                 loop {
                     let next_char = self.peek_char();
-                    if next_char.is_ascii_alphabetic() || next_char == '_' {
+                    if next_char.is_ascii_alphabetic()
+                        || next_char.is_alphanumeric()
+                        || next_char == '_'
+                    {
                         literal.push(next_char);
                         self.read_char();
                     } else {
@@ -99,10 +104,11 @@ impl Lexer {
 
                 Lexer::literal_to_token(&literal)
             }
+            _ => Token::Illegal,
         };
 
         self.read_char();
-        while self.cur_char == ' ' {
+        while self.cur_char == ' ' || self.cur_char == '\t' || self.cur_char == '\r' || self.cur_char == '\n' {
             self.read_char();
         }
         return token;
@@ -132,7 +138,7 @@ impl Lexer {
             "if" => Token::If,
             "else" => Token::Else,
             "return" => Token::Return,
-            _ => Token::Ident(literal.to_string())
+            _ => Token::Ident(literal.to_string()),
         }
     }
 }
@@ -168,11 +174,11 @@ mod test {
             },
             Testcase {
                 input: "12345".to_string(),
-                expected: vec![Token::Int(12345)],
+                expected: vec![Token::Num(12345 as f64)],
             },
             Testcase {
                 input: "12345.456".to_string(),
-                expected: vec![Token::Float(12345.456)],
+                expected: vec![Token::Num(12345.456)],
             },
             Testcase {
                 input: "let x = 5".to_string(),
@@ -180,7 +186,7 @@ mod test {
                     Token::Let,
                     Token::Ident("x".to_string()),
                     Token::Assign,
-                    Token::Int(5),
+                    Token::Num(5 as f64),
                 ],
             },
         ];
@@ -196,6 +202,7 @@ mod test {
                 assert_eq!(token, testcase.expected[i]);
                 i += 1;
             }
+            assert_eq!(i, testcase.expected.len())
         }
     }
 }

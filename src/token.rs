@@ -11,6 +11,10 @@ pub enum Token {
     Equal,
     NotEqual,
     Bang,
+    Gt,
+    Lt,
+    Gte,
+    Lte,
 
     Comma,
     Semicolon,
@@ -26,12 +30,5 @@ pub enum Token {
     Fn,
 
     Ident(String),
-    Int(i128),
-    Float(f64),
+    Num(f64),
 }
-
-// impl PartialEq<Token> for &Token {
-//     fn eq(&self, other: &Token) -> bool {
-//         return (*self).eq(other);
-//     }
-// }
