@@ -1,15 +1,19 @@
-mod tokenizer;
+mod lexer;
+mod parser;
+mod token;
+mod statement;
 
-use tokenizer::lexer::{Lexer, Token};
+use lexer::Lexer;
+use parser::Parser;
 
 fn main() {
-    let mut lexer = Lexer::new("let a = 5;");
-    loop {
-        let token = lexer.next_token();
-        if token == Token::Eof {
-            break;
-        }
-        println!("{:?}", token);
+    let lexer = Lexer::new("let a = 5;");
+    let mut parser = Parser::new(lexer);
+
+    let program = parser.parse_program();
+    println!("{:?}", program.statements.len());
+    for statement in program.statements {
+        println!("{:?}", statement.kind())
     }
 
     return;
