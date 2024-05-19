@@ -61,8 +61,8 @@ impl Lexer {
             ';' => Token::Semicolon,
             '(' => Token::LParen,
             ')' => Token::RParen,
-            '{' => Token::LBracket,
-            '}' => Token::RBracket,
+            '{' => Token::LCurlyBracket,
+            '}' => Token::RCurlyBracket,
 
             '1'..='9' => {
                 let mut num = String::from(self.cur_char);

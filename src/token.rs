@@ -20,8 +20,10 @@ pub enum Token {
     Semicolon,
     LParen,
     RParen,
-    LBracket,
-    RBracket,
+    LCurlyBracket,
+    RCurlyBracket,
+    LSquareBracket,
+    RSquareBracket,
 
     If,
     Else,

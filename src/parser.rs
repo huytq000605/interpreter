@@ -83,7 +83,7 @@ impl Parser {
 
     fn cur_precedence(&self) -> Precedence {
         match self.cur_token {
-            Token::LBracket => PRECEDENCE_INDEX,
+            Token::LSquareBracket => PRECEDENCE_INDEX,
             Token::LParen => PRECEDENCE_PARENTHESE,
             Token::Equal | Token::NotEqual => PRECEDENCE_EQUAL,
             Token::Plus | Token::Minus => PRECEDENCE_SUM,
@@ -95,7 +95,7 @@ impl Parser {
 
     fn peek_precedence(&self) -> Precedence {
         match self.peek_token {
-            // Token::LBracket => PRECEDENCE_INDEX,
+            Token::LSquareBracket => PRECEDENCE_INDEX,
             Token::LParen => PRECEDENCE_PARENTHESE,
             Token::Equal | Token::NotEqual => PRECEDENCE_EQUAL,
             Token::Plus | Token::Minus => PRECEDENCE_SUM,
@@ -246,7 +246,7 @@ impl Parser {
             self.next_token()
         }
 
-        if self.cur_token != Token::LBracket {
+        if self.cur_token != Token::LCurlyBracket {
             return Err(format!("Expected LBracket, got = {:?}", self.cur_token));
         }
 
@@ -255,7 +255,7 @@ impl Parser {
 
         // Start parsing outcome until facing RBracket
         let mut outcome = vec![];
-        while self.cur_token != Token::RBracket {
+        while self.cur_token != Token::RCurlyBracket {
             let statement = match self.parse_statement() {
                 Ok(statement) => statement,
                 Err(e) => return Err(e),
@@ -290,13 +290,13 @@ impl Parser {
                     Err(e) => return Err(e)
                 }
             }
-            Token::LBracket => {
+            Token::LCurlyBracket => {
                 // Skip through LBracket Token
                 self.next_token();
 
                 // Start parsing outcome until facing RBracket
                 let mut alternate = vec![];
-                while self.cur_token != Token::RBracket {
+                while self.cur_token != Token::RCurlyBracket {
                     let statement = match self.parse_statement() {
                         Ok(statement) => statement,
                         Err(e) => return Err(e),
