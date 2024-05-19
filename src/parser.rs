@@ -1,5 +1,4 @@
 use crate::{lexer::Lexer, statement::*, token::Token};
-use std::default::Default;
 
 type Precedence = i8;
 const PRECEDENCE_LOWEST: Precedence = 0;
@@ -45,34 +44,9 @@ impl Parser {
         };
 
         while self.cur_token != Token::Eof {
-            match self.cur_token {
-                Token::Let => match self.parse_let_statement() {
-                    Ok(statement) => {
-                        program.statements.push(Statement::Let(statement));
-                    }
-                    Err(err_msg) => {
-                        program.errors.push(err_msg);
-                        return program;
-                    }
-                },
-                Token::Return => match self.parse_return_statement() {
-                    Ok(statement) => {
-                        program.statements.push(Statement::Return(statement));
-                    }
-                    Err(err_msg) => {
-                        program.errors.push(err_msg);
-                        return program;
-                    }
-                },
-                _ => match self.parse_expression_statement(PRECEDENCE_LOWEST) {
-                    Ok(statement) => {
-                        program.statements.push(Statement::Expression(statement));
-                    }
-                    Err(err_msg) => {
-                        program.errors.push(err_msg);
-                        return program;
-                    }
-                },
+            match self.parse_statement() {
+                Ok(statement) => program.statements.push(statement),
+                Err(e) => program.errors.push(e)
             }
 
             // Skip through last token from parsed statement
@@ -84,6 +58,23 @@ impl Parser {
         }
 
         program
+    }
+
+    fn parse_statement(&mut self) -> Result<Statement, String> {
+        match self.cur_token {
+            Token::Let => match self.parse_let_statement() {
+                Ok(statement) => Ok(Statement::Let(statement)),
+                Err(e) => Err(e)
+            },
+            Token::Return => match self.parse_return_statement() {
+                Ok(statement) => Ok(Statement::Return(statement)),
+                Err(e) => Err(e)
+            },
+            _ => match self.parse_expression_statement(PRECEDENCE_LOWEST) {
+                Ok(statement) => Ok(Statement::Expression(statement)),
+                Err(e) => Err(e)
+            }
+        }
     }
 
     fn cur_precedence(&self) -> Precedence {
@@ -163,8 +154,24 @@ impl Parser {
     ) -> Result<ExpressionStatement, String> {
         // Match Prefix Parse
         let mut left = match &self.cur_token {
+            Token::Bang | Token::Minus => {
+                let right = match self.parse_expression_statement(PRECEDENCE_LOWEST) {
+                    Ok(statement) => statement,
+                    Err(e) => return Err(e),
+                };
+                ExpressionStatement::Prefix(PrefixExpression {
+                    operator: self.cur_token.clone(),
+                    right: Box::new(right),
+                })
+            }
             Token::Num(num) => ExpressionStatement::Num(*num),
             Token::Ident(literal) => ExpressionStatement::Identifier(literal.clone()),
+            Token::If => {
+                match self.parse_if_expression() {
+                    Ok(statement) => statement,
+                    Err(e) => return Err(e)
+                }
+            }
             _ => {
                 return Err(format!(
                     "No prefix parse arm of token = {:?}",
@@ -173,11 +180,19 @@ impl Parser {
             }
         };
 
-
         // Match Infix Parse
         while self.peek_token != Token::Semicolon && precedence < self.peek_precedence() {
             left = match &self.peek_token {
-                Token::Plus | Token::Minus | Token::Slash | Token::Asterisk => {
+                Token::Plus
+                | Token::Minus
+                | Token::Slash
+                | Token::Asterisk
+                | Token::Equal
+                | Token::NotEqual
+                | Token::Gt
+                | Token::Gte
+                | Token::Lt
+                | Token::Lte => {
                     // Skip through prefix expression
                     self.next_token();
                     let precedence = self.cur_precedence();
@@ -199,22 +214,79 @@ impl Parser {
 
         Ok(left)
     }
+
+    fn parse_if_expression(&mut self) -> Result<ExpressionStatement, String>{
+        // Skip through IF token
+        self.next_token();
+
+        let mut has_lparen = false;
+        if self.peek_token == Token::LParen {
+            has_lparen = true;
+            self.next_token();
+        }
+        let condition = match self.parse_expression_statement(PRECEDENCE_LOWEST) {
+            Ok(statement) => statement,
+            Err(e) => return Err(e)
+        };
+        if has_lparen {
+            if self.peek_token != Token::RParen {
+                return Err(format!("Expected RParen, got = {:?}", self.peek_token))
+            }
+            // Skip through RParen
+            self.next_token()
+        }
+
+        if self.peek_token != Token::LBracket {
+            return Err(format!("Expected LBracket, got = {:?}", self.peek_token))
+        }
+
+        // Skip through LBracket
+        self.next_token();
+
+        // Start parsing outcome until facing RBracket
+        let mut outcome = vec![];
+        while self.cur_token != Token::RBracket {
+            let statement = match self.parse_statement() {
+                Ok(statement) => statement,
+                Err(e) => return Err(e)
+            };
+            outcome.push(statement)
+        }
+
+        // Skip through RBracket
+        self.next_token();
+
+        if self.cur_token != Token::Else {
+            Ok(ExpressionStatement::If(IfExpression{
+                condition: Box::new(condition),
+                outcome,
+                alternate: vec![]
+            }))
+        } else {
+            // TODO: implement else part
+            return Ok(ExpressionStatement::If(IfExpression{
+                condition: Box::new(condition),
+                outcome,
+                alternate: vec![]
+            }))
+        }
+
+    }
 }
 
 #[cfg(test)]
 mod test {
-
-    use crate::statement::{ExpressionStatement, LetStatement, ReturnStatement, Statement};
-
     use super::*;
     #[test]
     fn test_parser() {
-        struct Testcase {
+        struct Testcase<'a> {
+            name: &'a str,
             input: String,
             expected: Vec<Statement>,
         }
         let testcases: Vec<Testcase> = vec![
             Testcase {
+                name: "simple let",
                 input: String::from("let a"),
                 expected: vec![Statement::Let(LetStatement {
                     identifier: "a".to_string(),
@@ -222,6 +294,7 @@ mod test {
                 })],
             },
             Testcase {
+                name: "let and return",
                 input: String::from(
                     "let a = 6;
                     return 5",
@@ -237,11 +310,12 @@ mod test {
                 ],
             },
             Testcase {
+                name: "let and expression parsing",
                 input: String::from("let a = 5+6+7"),
                 expected: vec![Statement::Let(LetStatement {
                     identifier: "a".to_string(),
                     value: Some(ExpressionStatement::Infix(InflixExpression {
-                        left: Box::new(ExpressionStatement::Infix(InflixExpression{
+                        left: Box::new(ExpressionStatement::Infix(InflixExpression {
                             left: Box::new(ExpressionStatement::Num(5 as f64)),
                             operator: Token::Plus,
                             right: Box::new(ExpressionStatement::Num(6 as f64)),
@@ -252,13 +326,14 @@ mod test {
                 })],
             },
             Testcase {
-                input: String::from("let a = 5+6/7"),
+                name: "let and expression with different precedence check",
+                input: String::from("let a = 5 + 6 / 7"),
                 expected: vec![Statement::Let(LetStatement {
                     identifier: "a".to_string(),
                     value: Some(ExpressionStatement::Infix(InflixExpression {
                         left: Box::new(ExpressionStatement::Num(5 as f64)),
                         operator: Token::Plus,
-                        right: Box::new(ExpressionStatement::Infix(InflixExpression{
+                        right: Box::new(ExpressionStatement::Infix(InflixExpression {
                             left: Box::new(ExpressionStatement::Num(6 as f64)),
                             operator: Token::Slash,
                             right: Box::new(ExpressionStatement::Num(7 as f64)),

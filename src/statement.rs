@@ -23,11 +23,13 @@ pub enum ExpressionStatement {
     Prefix(PrefixExpression),
     Infix(InflixExpression),
     Identifier(String),
+    If(IfExpression),
     Num(f64),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct PrefixExpression {
+    pub operator: Token,
     pub right: Box<ExpressionStatement>,
 }
 
@@ -36,4 +38,10 @@ pub struct InflixExpression {
     pub operator: Token,
     pub left: Box<ExpressionStatement>,
     pub right: Box<ExpressionStatement>,
+}
+#[derive(Debug, PartialEq)]
+pub struct IfExpression {
+    pub condition: Box<ExpressionStatement>,
+    pub outcome: Vec<Statement>,
+    pub alternate: Vec<Statement>
 }
