@@ -265,22 +265,57 @@ impl Parser {
             self.next_token();
         }
 
-        // Skip through RBracket Token
-        self.next_token();
-
-        if self.cur_token != Token::Else {
-            Ok(ExpressionStatement::If {
-                condition: Box::new(condition),
-                outcome,
-                alternate: vec![],
-            })
-        } else {
-            // TODO: implement else part
+        if self.peek_token != Token::Else {
             return Ok(ExpressionStatement::If {
                 condition: Box::new(condition),
                 outcome,
                 alternate: vec![],
             });
+        }
+
+        // Skip through RBracket Token
+        self.next_token();
+
+        // Skip through Else Token
+        self.next_token();
+
+        match self.cur_token {
+            Token::If => {
+                match self.parse_if_expression() {
+                    Ok(statement) =>                 Ok(ExpressionStatement::If {
+                        condition: Box::new(condition),
+                        outcome,
+                        alternate: vec![Statement::Expression(statement)],
+                    }),
+                    Err(e) => return Err(e)
+                }
+            }
+            Token::LBracket => {
+                // Skip through LBracket Token
+                self.next_token();
+
+                // Start parsing outcome until facing RBracket
+                let mut alternate = vec![];
+                while self.cur_token != Token::RBracket {
+                    let statement = match self.parse_statement() {
+                        Ok(statement) => statement,
+                        Err(e) => return Err(e),
+                    };
+                    alternate.push(statement);
+                    // Skip through expression
+                    self.next_token();
+                }
+
+                Ok(ExpressionStatement::If {
+                    condition: Box::new(condition),
+                    outcome,
+                    alternate,
+                })
+            }
+            _ => Err(format!(
+                "Expected Token::LBracket or Token::If, got = {:?}",
+                self.cur_token
+            )),
         }
     }
 }
@@ -339,7 +374,7 @@ mod test {
             Testcase {
                 name: "let and expression with different precedence check",
                 input: String::from("let a = 5 + 6 / 7"),
-                expected: vec![Statement::Let{
+                expected: vec![Statement::Let {
                     identifier: "a".to_string(),
                     value: Some(ExpressionStatement::Infix {
                         left: Box::new(ExpressionStatement::Num(5 as f64)),
@@ -356,8 +391,13 @@ mod test {
                 name: "if expression",
                 input: String::from(
                     "if a == 5 {
-                    let b = 10;
-                }",
+                        let b = 10;
+                    } else if c >= 2 {
+                        3
+                    } else {
+                        gg
+                    }
+                    ",
                 ),
                 expected: vec![Statement::Expression(ExpressionStatement::If {
                     condition: Box::new(ExpressionStatement::Infix {
@@ -369,7 +409,17 @@ mod test {
                         identifier: "b".to_string(),
                         value: Some(ExpressionStatement::Num(10 as f64)),
                     }],
-                    alternate: vec![],
+                    alternate: vec![Statement::Expression(ExpressionStatement::If {
+                        condition: Box::new(ExpressionStatement::Infix {
+                            left: Box::new(ExpressionStatement::Identifier("c".to_string())),
+                            operator: Token::Gte,
+                            right: Box::new(ExpressionStatement::Num(2 as f64)),
+                        }),
+                        outcome: vec![Statement::Expression(ExpressionStatement::Num(3 as f64))],
+                        alternate: vec![Statement::Expression(ExpressionStatement::Identifier(
+                            "gg".to_string(),
+                        ))],
+                    })],
                 })],
             },
         ];
