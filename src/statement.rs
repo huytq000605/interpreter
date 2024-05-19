@@ -23,11 +23,11 @@ pub enum ExpressionStatement {
         operator: Token,
         right: Box<ExpressionStatement>,
     },
-    Identifier(String),
     If {
         condition: Box<ExpressionStatement>,
         outcome: Vec<Statement>,
-        alternate: Vec<Statement>
+        alternate: Vec<Statement>,
     },
+    Identifier(String),
     Num(f64),
 }

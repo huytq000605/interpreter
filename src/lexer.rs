@@ -206,6 +206,15 @@ mod test {
                     Token::Num(6 as f64),
                 ],
             },
+            Testcase {
+                input: "if a == 5".to_string(),
+                expected: vec![
+                    Token::If,
+                    Token::Ident("a".to_string()),
+                    Token::Equal,
+                    Token::Num(5 as f64),
+                ],
+            },
         ];
 
         for testcase in testcases.into_iter() {

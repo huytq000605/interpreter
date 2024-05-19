@@ -1,4 +1,5 @@
 use crate::{lexer::Lexer, statement::*, token::Token};
+use std::fmt::Display;
 
 type Precedence = i8;
 const PRECEDENCE_LOWEST: Precedence = 0;
@@ -46,7 +47,10 @@ impl Parser {
         while self.cur_token != Token::Eof {
             match self.parse_statement() {
                 Ok(statement) => program.statements.push(statement),
-                Err(e) => program.errors.push(e)
+                Err(e) => {
+                    panic!("e = {:?}", e.clone());
+                    program.errors.push(e);
+                }
             }
 
             // Skip through last token from parsed statement
@@ -64,16 +68,16 @@ impl Parser {
         match self.cur_token {
             Token::Let => match self.parse_let_statement() {
                 Ok(statement) => Ok(statement),
-                Err(e) => Err(e)
+                Err(e) => Err(e),
             },
             Token::Return => match self.parse_return_statement() {
                 Ok(statement) => Ok(statement),
-                Err(e) => Err(e)
+                Err(e) => Err(e),
             },
             _ => match self.parse_expression_statement(PRECEDENCE_LOWEST) {
                 Ok(statement) => Ok(Statement::Expression(statement)),
-                Err(e) => Err(e)
-            }
+                Err(e) => Err(e),
+            },
         }
     }
 
@@ -91,7 +95,7 @@ impl Parser {
 
     fn peek_precedence(&self) -> Precedence {
         match self.peek_token {
-            Token::LBracket => PRECEDENCE_INDEX,
+            // Token::LBracket => PRECEDENCE_INDEX,
             Token::LParen => PRECEDENCE_PARENTHESE,
             Token::Equal | Token::NotEqual => PRECEDENCE_EQUAL,
             Token::Plus | Token::Minus => PRECEDENCE_SUM,
@@ -106,7 +110,12 @@ impl Parser {
         self.next_token();
         let literal = match &self.cur_token {
             Token::Ident(literal) => literal.clone(),
-            _ => return Err("Invalid let statement".to_string()),
+            _ => {
+                return Err(format!(
+                    "Expected Token::Ident got {:?}",
+                    self.cur_token.clone()
+                ))
+            }
         };
         if self.peek_token != Token::Assign {
             return Ok(Statement::Let {
@@ -166,15 +175,13 @@ impl Parser {
             }
             Token::Num(num) => ExpressionStatement::Num(*num),
             Token::Ident(literal) => ExpressionStatement::Identifier(literal.clone()),
-            Token::If => {
-                match self.parse_if_expression() {
-                    Ok(statement) => statement,
-                    Err(e) => return Err(e)
-                }
-            }
+            Token::If => match self.parse_if_expression() {
+                Ok(statement) => statement,
+                Err(e) => return Err(e),
+            },
             _ => {
                 return Err(format!(
-                    "No prefix parse arm of token = {:?}",
+                    "No Prefix Parse arm for token = {:?}",
                     self.cur_token
                 ))
             }
@@ -215,32 +222,35 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_if_expression(&mut self) -> Result<ExpressionStatement, String>{
+    fn parse_if_expression(&mut self) -> Result<ExpressionStatement, String> {
         // Skip through IF token
         self.next_token();
 
         let mut has_lparen = false;
-        if self.peek_token == Token::LParen {
+        if self.cur_token == Token::LParen {
             has_lparen = true;
             self.next_token();
         }
         let condition = match self.parse_expression_statement(PRECEDENCE_LOWEST) {
             Ok(statement) => statement,
-            Err(e) => return Err(e)
+            Err(e) => return Err(e),
         };
+        // Skip through expression
+        self.next_token();
+
         if has_lparen {
-            if self.peek_token != Token::RParen {
-                return Err(format!("Expected RParen, got = {:?}", self.peek_token))
+            if self.cur_token != Token::RParen {
+                return Err(format!("Expected RParen, got = {:?}", self.peek_token));
             }
             // Skip through RParen
             self.next_token()
         }
 
-        if self.peek_token != Token::LBracket {
-            return Err(format!("Expected LBracket, got = {:?}", self.peek_token))
+        if self.cur_token != Token::LBracket {
+            return Err(format!("Expected LBracket, got = {:?}", self.cur_token));
         }
 
-        // Skip through LBracket
+        // Skip through LBracket Token
         self.next_token();
 
         // Start parsing outcome until facing RBracket
@@ -248,29 +258,30 @@ impl Parser {
         while self.cur_token != Token::RBracket {
             let statement = match self.parse_statement() {
                 Ok(statement) => statement,
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             };
-            outcome.push(statement)
+            outcome.push(statement);
+            // Skip through expression
+            self.next_token();
         }
 
-        // Skip through RBracket
+        // Skip through RBracket Token
         self.next_token();
 
         if self.cur_token != Token::Else {
-            Ok(ExpressionStatement::If{
+            Ok(ExpressionStatement::If {
                 condition: Box::new(condition),
                 outcome,
-                alternate: vec![]
+                alternate: vec![],
             })
         } else {
             // TODO: implement else part
-            return Ok(ExpressionStatement::If{
+            return Ok(ExpressionStatement::If {
                 condition: Box::new(condition),
                 outcome,
-                alternate: vec![]
-            })
+                alternate: vec![],
+            });
         }
-
     }
 }
 
@@ -341,12 +352,32 @@ mod test {
                     }),
                 }],
             },
+            Testcase {
+                name: "if expression",
+                input: String::from(
+                    "if a == 5 {
+                    let b = 10;
+                }",
+                ),
+                expected: vec![Statement::Expression(ExpressionStatement::If {
+                    condition: Box::new(ExpressionStatement::Infix {
+                        left: Box::new(ExpressionStatement::Identifier("a".to_string())),
+                        operator: Token::Equal,
+                        right: Box::new(ExpressionStatement::Num(5 as f64)),
+                    }),
+                    outcome: vec![Statement::Let {
+                        identifier: "b".to_string(),
+                        value: Some(ExpressionStatement::Num(10 as f64)),
+                    }],
+                    alternate: vec![],
+                })],
+            },
         ];
         for testcase in testcases.into_iter() {
             let lexer = Lexer::new(&testcase.input);
             let mut parser = Parser::new(lexer);
             let program = parser.parse_program();
-            assert_eq!(program.statements.len(), testcase.expected.len(),);
+            assert_eq!(program.statements.len(), testcase.expected.len());
             for (i, statement) in program.statements.into_iter().enumerate() {
                 assert_eq!(statement, testcase.expected[i]);
             }
