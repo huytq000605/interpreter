@@ -2,13 +2,8 @@ use crate::token::Token;
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    Let {
-        identifier: String,
-        value: Option<ExpressionStatement>,
-    },
-    Return {
-        value: Option<ExpressionStatement>,
-    },
+    Let(String, Option<ExpressionStatement>),
+    Return(Option<ExpressionStatement>),
     Expression(ExpressionStatement),
 }
 
@@ -28,6 +23,11 @@ pub enum ExpressionStatement {
         outcome: Vec<Statement>,
         alternate: Vec<Statement>,
     },
+    Fn {
+        args: Vec<String>,
+        body: Vec<Statement>,
+    },
     Identifier(String),
     Num(f64),
+    Bool(bool),
 }

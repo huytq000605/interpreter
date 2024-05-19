@@ -118,10 +118,7 @@ impl Parser {
             }
         };
         if self.peek_token != Token::Assign {
-            return Ok(Statement::Let {
-                identifier: literal,
-                value: None,
-            });
+            return Ok(Statement::Let(literal, None));
         }
 
         // Skip through identifier token
@@ -130,10 +127,7 @@ impl Parser {
         self.next_token();
 
         let let_statement = match self.parse_expression_statement(PRECEDENCE_LOWEST) {
-            Ok(statement) => Statement::Let {
-                identifier: literal,
-                value: Some(statement),
-            },
+            Ok(statement) => Statement::Let(literal, Some(statement)),
             Err(e) => {
                 return Err(e);
             }
@@ -150,9 +144,7 @@ impl Parser {
         // Skip through return token
         self.next_token();
         match self.parse_expression_statement(PRECEDENCE_LOWEST) {
-            Ok(statement) => Ok(Statement::Return {
-                value: Some(statement),
-            }),
+            Ok(statement) => Ok(Statement::Return(Some(statement))),
             Err(e) => Err(e),
         }
     }
@@ -164,18 +156,28 @@ impl Parser {
         // Match Prefix Parse
         let mut left = match &self.cur_token {
             Token::Bang | Token::Minus => {
+                let operator = self.cur_token.clone();
+                // Skip through operator token
+                self.next_token();
+
                 let right = match self.parse_expression_statement(PRECEDENCE_LOWEST) {
                     Ok(statement) => statement,
                     Err(e) => return Err(e),
                 };
                 ExpressionStatement::PrefixExpression {
-                    operator: self.cur_token.clone(),
+                    operator,
                     right: Box::new(right),
                 }
             }
             Token::Num(num) => ExpressionStatement::Num(*num),
             Token::Ident(literal) => ExpressionStatement::Identifier(literal.clone()),
+            Token::True => ExpressionStatement::Bool(true),
+            Token::False => ExpressionStatement::Bool(false),
             Token::If => match self.parse_if_expression() {
+                Ok(statement) => statement,
+                Err(e) => return Err(e),
+            },
+            Token::Fn => match self.parse_fn_expression() {
                 Ok(statement) => statement,
                 Err(e) => return Err(e),
             },
@@ -280,16 +282,14 @@ impl Parser {
         self.next_token();
 
         match self.cur_token {
-            Token::If => {
-                match self.parse_if_expression() {
-                    Ok(statement) =>                 Ok(ExpressionStatement::If {
-                        condition: Box::new(condition),
-                        outcome,
-                        alternate: vec![Statement::Expression(statement)],
-                    }),
-                    Err(e) => return Err(e)
-                }
-            }
+            Token::If => match self.parse_if_expression() {
+                Ok(statement) => Ok(ExpressionStatement::If {
+                    condition: Box::new(condition),
+                    outcome,
+                    alternate: vec![Statement::Expression(statement)],
+                }),
+                Err(e) => return Err(e),
+            },
             Token::LCurlyBracket => {
                 // Skip through LBracket Token
                 self.next_token();
@@ -318,6 +318,63 @@ impl Parser {
             )),
         }
     }
+
+    fn parse_fn_expression(&mut self) -> Result<ExpressionStatement, String> {
+        // Skip through fn token
+        self.next_token();
+        if self.cur_token != Token::LParen {
+            return Err(format!("Expected Token::LParen, got={:?}", self.cur_token));
+        }
+        // Skip through LParen token
+        self.next_token();
+        let mut args = vec![];
+
+        if self.cur_token != Token::RParen {
+            match &self.cur_token {
+                Token::Ident(arg) => args.push(arg.clone()),
+                _ => return Err(format!("Expected Token::Ident, got={:?}", self.cur_token)),
+            }
+            // Skip through Ident token
+            self.next_token();
+
+            while self.cur_token != Token::RParen {
+                if self.cur_token != Token::Comma {
+                    return Err(format!("Expected Token::Comma, got={:?}", self.cur_token));
+                }
+                // Skip through Comma token
+                self.next_token();
+
+                match &self.cur_token {
+                    Token::Ident(arg) => args.push(arg.clone()),
+                    _ => return Err(format!("Expected Token::Ident, got={:?}", self.cur_token)),
+                }
+                // Skip through Ident token
+                self.next_token();
+            }
+        }
+
+        // Skip through RParen token
+        self.next_token();
+        if self.cur_token != Token::LCurlyBracket {
+            return Err(format!(
+                "Expected Token::LCurlyBracket, got={:?}",
+                self.cur_token
+            ));
+        }
+        // Skip through LCurlyBracket token
+        self.next_token();
+        let mut body = vec![];
+        while self.cur_token != Token::RCurlyBracket {
+            match self.parse_statement() {
+                Ok(stmt) => body.push(stmt),
+                Err(e) => return Err(e),
+            }
+            // Skip through statement
+            self.next_token()
+        }
+
+        return Ok(ExpressionStatement::Fn { args, body });
+    }
 }
 
 #[cfg(test)]
@@ -334,10 +391,7 @@ mod test {
             Testcase {
                 name: "simple let",
                 input: String::from("let a"),
-                expected: vec![Statement::Let {
-                    identifier: "a".to_string(),
-                    value: None,
-                }],
+                expected: vec![Statement::Let("a".to_string(), None)],
             },
             Testcase {
                 name: "let and return",
@@ -346,21 +400,16 @@ mod test {
                     return 5",
                 ),
                 expected: vec![
-                    Statement::Let {
-                        identifier: "a".to_string(),
-                        value: Some(ExpressionStatement::Num(6 as f64)),
-                    },
-                    Statement::Return {
-                        value: Some(ExpressionStatement::Num(5 as f64)),
-                    },
+                    Statement::Let("a".to_string(), Some(ExpressionStatement::Num(6 as f64))),
+                    Statement::Return(Some(ExpressionStatement::Num(5 as f64))),
                 ],
             },
             Testcase {
                 name: "let and expression parsing",
                 input: String::from("let a = 5+6+7"),
-                expected: vec![Statement::Let {
-                    identifier: "a".to_string(),
-                    value: Some(ExpressionStatement::Infix {
+                expected: vec![Statement::Let(
+                    "a".to_string(),
+                    Some(ExpressionStatement::Infix {
                         left: Box::new(ExpressionStatement::Infix {
                             left: Box::new(ExpressionStatement::Num(5 as f64)),
                             operator: Token::Plus,
@@ -369,14 +418,14 @@ mod test {
                         operator: Token::Plus,
                         right: Box::new(ExpressionStatement::Num(7 as f64)),
                     }),
-                }],
+                )],
             },
             Testcase {
                 name: "let and expression with different precedence check",
                 input: String::from("let a = 5 + 6 / 7"),
-                expected: vec![Statement::Let {
-                    identifier: "a".to_string(),
-                    value: Some(ExpressionStatement::Infix {
+                expected: vec![Statement::Let(
+                    "a".to_string(),
+                    Some(ExpressionStatement::Infix {
                         left: Box::new(ExpressionStatement::Num(5 as f64)),
                         operator: Token::Plus,
                         right: Box::new(ExpressionStatement::Infix {
@@ -385,7 +434,7 @@ mod test {
                             right: Box::new(ExpressionStatement::Num(7 as f64)),
                         }),
                     }),
-                }],
+                )],
             },
             Testcase {
                 name: "if expression",
@@ -393,7 +442,7 @@ mod test {
                     "if a == 5 {
                         let b = 10;
                     } else if c >= 2 {
-                        3
+                        !3
                     } else {
                         gg
                     }
@@ -405,22 +454,59 @@ mod test {
                         operator: Token::Equal,
                         right: Box::new(ExpressionStatement::Num(5 as f64)),
                     }),
-                    outcome: vec![Statement::Let {
-                        identifier: "b".to_string(),
-                        value: Some(ExpressionStatement::Num(10 as f64)),
-                    }],
+                    outcome: vec![Statement::Let(
+                        "b".to_string(),
+                        Some(ExpressionStatement::Num(10 as f64)),
+                    )],
                     alternate: vec![Statement::Expression(ExpressionStatement::If {
                         condition: Box::new(ExpressionStatement::Infix {
                             left: Box::new(ExpressionStatement::Identifier("c".to_string())),
                             operator: Token::Gte,
                             right: Box::new(ExpressionStatement::Num(2 as f64)),
                         }),
-                        outcome: vec![Statement::Expression(ExpressionStatement::Num(3 as f64))],
+                        outcome: vec![Statement::Expression(
+                            ExpressionStatement::PrefixExpression {
+                                operator: Token::Bang,
+                                right: Box::new(ExpressionStatement::Num(3 as f64)),
+                            },
+                        )],
                         alternate: vec![Statement::Expression(ExpressionStatement::Identifier(
                             "gg".to_string(),
                         ))],
                     })],
                 })],
+            },
+            Testcase {
+                name: "fn expression",
+                input: String::from(
+                    "let a = fn(b, c) {
+                    let d = b + c
+                    return d
+                }",
+                ),
+                expected: vec![Statement::Let(
+                    "a".to_string(),
+                    Some(ExpressionStatement::Fn {
+                        args: vec!["b".to_string(), "c".to_string()],
+                        body: vec![
+                            Statement::Let(
+                                "d".to_string(),
+                                Some(ExpressionStatement::Infix {
+                                    left: Box::new(ExpressionStatement::Identifier(
+                                        "b".to_string(),
+                                    )),
+                                    operator: Token::Plus,
+                                    right: Box::new(ExpressionStatement::Identifier(
+                                        "c".to_string(),
+                                    )),
+                                }),
+                            ),
+                            Statement::Return(Some(ExpressionStatement::Identifier(
+                                "d".to_string(),
+                            ))),
+                        ],
+                    }),
+                )],
             },
         ];
         for testcase in testcases.into_iter() {
