@@ -63,11 +63,11 @@ impl Parser {
     fn parse_statement(&mut self) -> Result<Statement, String> {
         match self.cur_token {
             Token::Let => match self.parse_let_statement() {
-                Ok(statement) => Ok(Statement::Let(statement)),
+                Ok(statement) => Ok(statement),
                 Err(e) => Err(e)
             },
             Token::Return => match self.parse_return_statement() {
-                Ok(statement) => Ok(Statement::Return(statement)),
+                Ok(statement) => Ok(statement),
                 Err(e) => Err(e)
             },
             _ => match self.parse_expression_statement(PRECEDENCE_LOWEST) {
@@ -101,7 +101,7 @@ impl Parser {
         }
     }
 
-    fn parse_let_statement(&mut self) -> Result<LetStatement, String> {
+    fn parse_let_statement(&mut self) -> Result<Statement, String> {
         // Skip through let token
         self.next_token();
         let literal = match &self.cur_token {
@@ -109,7 +109,7 @@ impl Parser {
             _ => return Err("Invalid let statement".to_string()),
         };
         if self.peek_token != Token::Assign {
-            return Ok(LetStatement {
+            return Ok(Statement::Let {
                 identifier: literal,
                 value: None,
             });
@@ -121,7 +121,7 @@ impl Parser {
         self.next_token();
 
         let let_statement = match self.parse_expression_statement(PRECEDENCE_LOWEST) {
-            Ok(statement) => LetStatement {
+            Ok(statement) => Statement::Let {
                 identifier: literal,
                 value: Some(statement),
             },
@@ -137,11 +137,11 @@ impl Parser {
         Ok(let_statement)
     }
 
-    fn parse_return_statement(&mut self) -> Result<ReturnStatement, String> {
+    fn parse_return_statement(&mut self) -> Result<Statement, String> {
         // Skip through return token
         self.next_token();
         match self.parse_expression_statement(PRECEDENCE_LOWEST) {
-            Ok(statement) => Ok(ReturnStatement {
+            Ok(statement) => Ok(Statement::Return {
                 value: Some(statement),
             }),
             Err(e) => Err(e),
@@ -159,10 +159,10 @@ impl Parser {
                     Ok(statement) => statement,
                     Err(e) => return Err(e),
                 };
-                ExpressionStatement::Prefix(PrefixExpression {
+                ExpressionStatement::PrefixExpression {
                     operator: self.cur_token.clone(),
                     right: Box::new(right),
-                })
+                }
             }
             Token::Num(num) => ExpressionStatement::Num(*num),
             Token::Ident(literal) => ExpressionStatement::Identifier(literal.clone()),
@@ -200,11 +200,11 @@ impl Parser {
                     // Skip through operator token
                     self.next_token();
                     match self.parse_expression_statement(precedence) {
-                        Ok(right) => ExpressionStatement::Infix(InflixExpression {
+                        Ok(right) => ExpressionStatement::Infix {
                             left: Box::new(left),
                             operator,
                             right: Box::new(right),
-                        }),
+                        },
                         Err(e) => return Err(e),
                     }
                 }
@@ -257,18 +257,18 @@ impl Parser {
         self.next_token();
 
         if self.cur_token != Token::Else {
-            Ok(ExpressionStatement::If(IfExpression{
+            Ok(ExpressionStatement::If{
                 condition: Box::new(condition),
                 outcome,
                 alternate: vec![]
-            }))
+            })
         } else {
             // TODO: implement else part
-            return Ok(ExpressionStatement::If(IfExpression{
+            return Ok(ExpressionStatement::If{
                 condition: Box::new(condition),
                 outcome,
                 alternate: vec![]
-            }))
+            })
         }
 
     }
@@ -288,10 +288,10 @@ mod test {
             Testcase {
                 name: "simple let",
                 input: String::from("let a"),
-                expected: vec![Statement::Let(LetStatement {
+                expected: vec![Statement::Let {
                     identifier: "a".to_string(),
                     value: None,
-                })],
+                }],
             },
             Testcase {
                 name: "let and return",
@@ -300,46 +300,46 @@ mod test {
                     return 5",
                 ),
                 expected: vec![
-                    Statement::Let(LetStatement {
+                    Statement::Let {
                         identifier: "a".to_string(),
                         value: Some(ExpressionStatement::Num(6 as f64)),
-                    }),
-                    Statement::Return(ReturnStatement {
+                    },
+                    Statement::Return {
                         value: Some(ExpressionStatement::Num(5 as f64)),
-                    }),
+                    },
                 ],
             },
             Testcase {
                 name: "let and expression parsing",
                 input: String::from("let a = 5+6+7"),
-                expected: vec![Statement::Let(LetStatement {
+                expected: vec![Statement::Let {
                     identifier: "a".to_string(),
-                    value: Some(ExpressionStatement::Infix(InflixExpression {
-                        left: Box::new(ExpressionStatement::Infix(InflixExpression {
+                    value: Some(ExpressionStatement::Infix {
+                        left: Box::new(ExpressionStatement::Infix {
                             left: Box::new(ExpressionStatement::Num(5 as f64)),
                             operator: Token::Plus,
                             right: Box::new(ExpressionStatement::Num(6 as f64)),
-                        })),
+                        }),
                         operator: Token::Plus,
                         right: Box::new(ExpressionStatement::Num(7 as f64)),
-                    })),
-                })],
+                    }),
+                }],
             },
             Testcase {
                 name: "let and expression with different precedence check",
                 input: String::from("let a = 5 + 6 / 7"),
-                expected: vec![Statement::Let(LetStatement {
+                expected: vec![Statement::Let{
                     identifier: "a".to_string(),
-                    value: Some(ExpressionStatement::Infix(InflixExpression {
+                    value: Some(ExpressionStatement::Infix {
                         left: Box::new(ExpressionStatement::Num(5 as f64)),
                         operator: Token::Plus,
-                        right: Box::new(ExpressionStatement::Infix(InflixExpression {
+                        right: Box::new(ExpressionStatement::Infix {
                             left: Box::new(ExpressionStatement::Num(6 as f64)),
                             operator: Token::Slash,
                             right: Box::new(ExpressionStatement::Num(7 as f64)),
-                        })),
-                    })),
-                })],
+                        }),
+                    }),
+                }],
             },
         ];
         for testcase in testcases.into_iter() {

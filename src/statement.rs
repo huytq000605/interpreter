@@ -2,46 +2,32 @@ use crate::token::Token;
 
 #[derive(Debug, PartialEq)]
 pub enum Statement {
-    Let(LetStatement),
-    Return(ReturnStatement),
+    Let {
+        identifier: String,
+        value: Option<ExpressionStatement>,
+    },
+    Return {
+        value: Option<ExpressionStatement>,
+    },
     Expression(ExpressionStatement),
 }
 
 #[derive(Debug, PartialEq)]
-pub struct LetStatement {
-    pub identifier: String,
-    pub value: Option<ExpressionStatement>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct ReturnStatement {
-    pub value: Option<ExpressionStatement>,
-}
-
-#[derive(Debug, PartialEq)]
 pub enum ExpressionStatement {
-    Prefix(PrefixExpression),
-    Infix(InflixExpression),
+    PrefixExpression {
+        operator: Token,
+        right: Box<ExpressionStatement>,
+    },
+    Infix {
+        left: Box<ExpressionStatement>,
+        operator: Token,
+        right: Box<ExpressionStatement>,
+    },
     Identifier(String),
-    If(IfExpression),
+    If {
+        condition: Box<ExpressionStatement>,
+        outcome: Vec<Statement>,
+        alternate: Vec<Statement>
+    },
     Num(f64),
-}
-
-#[derive(Debug, PartialEq)]
-pub struct PrefixExpression {
-    pub operator: Token,
-    pub right: Box<ExpressionStatement>,
-}
-
-#[derive(Debug, PartialEq)]
-pub struct InflixExpression {
-    pub operator: Token,
-    pub left: Box<ExpressionStatement>,
-    pub right: Box<ExpressionStatement>,
-}
-#[derive(Debug, PartialEq)]
-pub struct IfExpression {
-    pub condition: Box<ExpressionStatement>,
-    pub outcome: Vec<Statement>,
-    pub alternate: Vec<Statement>
 }
