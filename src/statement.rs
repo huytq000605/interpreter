@@ -9,7 +9,7 @@ pub enum Statement {
 
 #[derive(Debug, PartialEq)]
 pub enum ExpressionStatement {
-    PrefixExpression {
+    Prefix {
         operator: Token,
         right: Box<ExpressionStatement>,
     },
@@ -26,6 +26,10 @@ pub enum ExpressionStatement {
     Fn {
         args: Vec<String>,
         body: Vec<Statement>,
+    },
+    Call {
+        Caller: Box<ExpressionStatement>,
+        Args: Vec<ExpressionStatement>,
     },
     Identifier(String),
     Num(f64),

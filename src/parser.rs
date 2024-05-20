@@ -1,5 +1,4 @@
 use crate::{lexer::Lexer, statement::*, token::Token};
-use std::fmt::Display;
 
 type Precedence = i8;
 const PRECEDENCE_LOWEST: Precedence = 0;
@@ -164,7 +163,7 @@ impl Parser {
                     Ok(statement) => statement,
                     Err(e) => return Err(e),
                 };
-                ExpressionStatement::PrefixExpression {
+                ExpressionStatement::Prefix {
                     operator,
                     right: Box::new(right),
                 }
@@ -215,6 +214,42 @@ impl Parser {
                             right: Box::new(right),
                         },
                         Err(e) => return Err(e),
+                    }
+                }
+                Token::LParen => {
+                    // Skip through prefix expression
+                    self.next_token();
+                    // Skip through Token::LParen
+                    self.next_token();
+
+                    let mut args = vec![];
+                    while self.cur_token != Token::RParen {
+                        match self.parse_expression_statement(PRECEDENCE_LOWEST) {
+                            Ok(e) => args.push(e),
+                            Err(e) => return Err(e),
+                        };
+                        // Skip through expression
+                        self.next_token();
+                        match self.cur_token {
+                            Token::RParen => break,
+                            Token::Comma => {
+                                self.next_token();
+                            }
+                            _ => {
+                                return Err(format!(
+                                    "Expected Token::RParen or Token::Comma, got={:?}",
+                                    self.cur_token
+                                ))
+                            }
+                        }
+                    }
+
+                    // Skip through Token::RParen
+                    self.next_token();
+
+                    ExpressionStatement::Call {
+                        Caller: Box::new(left),
+                        Args: args,
                     }
                 }
                 _ => return Ok(left),
@@ -327,6 +362,32 @@ impl Parser {
         }
         // Skip through LParen token
         self.next_token();
+        let args = match self.parse_fn_args() {
+            Ok(args) => args,
+            Err(e) => return Err(e),
+        };
+        if self.cur_token != Token::LCurlyBracket {
+            return Err(format!(
+                "Expected Token::LCurlyBracket, got={:?}",
+                self.cur_token
+            ));
+        }
+        // Skip through LCurlyBracket token
+        self.next_token();
+        let mut body = vec![];
+        while self.cur_token != Token::RCurlyBracket {
+            match self.parse_statement() {
+                Ok(stmt) => body.push(stmt),
+                Err(e) => return Err(e),
+            }
+            // Skip through statement
+            self.next_token()
+        }
+
+        return Ok(ExpressionStatement::Fn { args, body });
+    }
+
+    fn parse_fn_args(&mut self) -> Result<Vec<String>, String> {
         let mut args = vec![];
 
         if self.cur_token != Token::RParen {
@@ -355,25 +416,8 @@ impl Parser {
 
         // Skip through RParen token
         self.next_token();
-        if self.cur_token != Token::LCurlyBracket {
-            return Err(format!(
-                "Expected Token::LCurlyBracket, got={:?}",
-                self.cur_token
-            ));
-        }
-        // Skip through LCurlyBracket token
-        self.next_token();
-        let mut body = vec![];
-        while self.cur_token != Token::RCurlyBracket {
-            match self.parse_statement() {
-                Ok(stmt) => body.push(stmt),
-                Err(e) => return Err(e),
-            }
-            // Skip through statement
-            self.next_token()
-        }
 
-        return Ok(ExpressionStatement::Fn { args, body });
+        Ok(args)
     }
 }
 
@@ -464,12 +508,10 @@ mod test {
                             operator: Token::Gte,
                             right: Box::new(ExpressionStatement::Num(2 as f64)),
                         }),
-                        outcome: vec![Statement::Expression(
-                            ExpressionStatement::PrefixExpression {
-                                operator: Token::Bang,
-                                right: Box::new(ExpressionStatement::Num(3 as f64)),
-                            },
-                        )],
+                        outcome: vec![Statement::Expression(ExpressionStatement::Prefix {
+                            operator: Token::Bang,
+                            right: Box::new(ExpressionStatement::Num(3 as f64)),
+                        })],
                         alternate: vec![Statement::Expression(ExpressionStatement::Identifier(
                             "gg".to_string(),
                         ))],
@@ -507,6 +549,14 @@ mod test {
                         ],
                     }),
                 )],
+            },
+            Testcase {
+                name: "call expression",
+                input: String::from("abc(def)"),
+                expected: vec![Statement::Expression(ExpressionStatement::Call {
+                    Caller: Box::new(ExpressionStatement::Identifier("abc".to_string())),
+                    Args: vec![ExpressionStatement::Identifier("def".to_string())],
+                })],
             },
         ];
         for testcase in testcases.into_iter() {
