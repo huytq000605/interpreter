@@ -18,7 +18,6 @@ pub struct Parser {
 
 pub struct Program {
     pub statements: Vec<Statement>,
-    pub errors: Vec<String>,
 }
 
 impl Parser {
@@ -37,19 +36,15 @@ impl Parser {
         self.peek_token = self.lexer.next_token();
     }
 
-    pub fn parse_program(&mut self) -> Program {
+    pub fn parse_program(&mut self) -> Result<Program, String> {
         let mut program = Program {
             statements: vec![],
-            errors: vec![],
         };
 
         while self.cur_token != Token::Eof {
             match self.parse_statement() {
                 Ok(statement) => program.statements.push(statement),
-                Err(e) => {
-                    panic!("e = {:?}", e.clone());
-                    program.errors.push(e);
-                }
+                Err(e) => return Err(e)
             }
 
             // Skip through last token from parsed statement
@@ -60,7 +55,7 @@ impl Parser {
             }
         }
 
-        program
+        Ok(program)
     }
 
     fn parse_statement(&mut self) -> Result<Statement, String> {
@@ -80,20 +75,8 @@ impl Parser {
         }
     }
 
-    fn cur_precedence(&self) -> Precedence {
-        match self.cur_token {
-            Token::LSquareBracket => PRECEDENCE_INDEX,
-            Token::LParen => PRECEDENCE_PARENTHESE,
-            Token::Equal | Token::NotEqual => PRECEDENCE_EQUAL,
-            Token::Plus | Token::Minus => PRECEDENCE_SUM,
-            Token::Asterisk | Token::Slash => PRECEDENCE_PRODUCT,
-            Token::Gt | Token::Gte | Token::Lt | Token::Lte => PRECEDENCE_GREATER_LESS,
-            _ => PRECEDENCE_LOWEST,
-        }
-    }
-
-    fn peek_precedence(&self) -> Precedence {
-        match self.peek_token {
+    fn get_precedence(token: &Token) -> Precedence {
+        match token {
             Token::LSquareBracket => PRECEDENCE_INDEX,
             Token::LParen => PRECEDENCE_PARENTHESE,
             Token::Equal | Token::NotEqual => PRECEDENCE_EQUAL,
@@ -159,7 +142,7 @@ impl Parser {
                 // Skip through operator token
                 self.next_token();
 
-                let right = match self.parse_expression_statement(PRECEDENCE_LOWEST) {
+                let right = match self.parse_expression_statement(PRECEDENCE_PREFIX) {
                     Ok(statement) => statement,
                     Err(e) => return Err(e),
                 };
@@ -184,7 +167,7 @@ impl Parser {
         };
 
         // Match Infix Parse
-        while self.peek_token != Token::Semicolon && precedence < self.peek_precedence() {
+        while self.peek_token != Token::Semicolon && precedence < Self::get_precedence(&self.peek_token) {
             left = match &self.peek_token {
                 Token::Plus
                 | Token::Minus
@@ -198,7 +181,7 @@ impl Parser {
                 | Token::Lte => {
                     // Skip through prefix expression
                     self.next_token();
-                    let precedence = self.cur_precedence();
+                    let precedence = Self::get_precedence(&self.cur_token);
                     let operator = self.cur_token.clone();
                     // Skip through operator token
                     self.next_token();
@@ -581,7 +564,7 @@ mod test {
         for testcase in testcases.into_iter() {
             let lexer = Lexer::new(&testcase.input);
             let mut parser = Parser::new(lexer);
-            let program = parser.parse_program();
+            let program = parser.parse_program().unwrap();
             assert_eq!(program.statements.len(), testcase.expected.len());
             for (i, statement) in program.statements.into_iter().enumerate() {
                 assert_eq!(statement, testcase.expected[i]);
