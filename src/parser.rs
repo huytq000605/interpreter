@@ -172,14 +172,9 @@ impl Parser {
             Token::Ident(literal) => ExpressionStatement::Identifier(literal.clone()),
             Token::True => ExpressionStatement::Bool(true),
             Token::False => ExpressionStatement::Bool(false),
-            Token::If => match self.parse_if_expression() {
-                Ok(statement) => statement,
-                Err(e) => return Err(e),
-            },
-            Token::Fn => match self.parse_fn_expression() {
-                Ok(statement) => statement,
-                Err(e) => return Err(e),
-            },
+            Token::LParen => self.parse_group_expression()?,
+            Token::If => self.parse_if_expression()?,
+            Token::Fn => self.parse_fn_expression()?,
             _ => {
                 return Err(format!(
                     "No Prefix Parse arm for token = {:?}",
@@ -259,8 +254,23 @@ impl Parser {
         Ok(left)
     }
 
+    fn parse_group_expression(&mut self) -> Result<ExpressionStatement, String> {
+        // Skip through Token::LParen
+        self.next_token();
+
+        let expression = self.parse_expression_statement(PRECEDENCE_LOWEST)?;
+
+        if self.peek_token != Token::RParen {
+            return Err(format!("Expected RParen, got={:?}", self.peek_token));
+        }
+        // Skip through expression
+        self.next_token();
+
+        return Ok(ExpressionStatement::Group(Box::new(expression)));
+    }
+
     fn parse_if_expression(&mut self) -> Result<ExpressionStatement, String> {
-        // Skip through IF token
+        // Skip through Token::If
         self.next_token();
 
         let mut has_lparen = false;
@@ -557,6 +567,15 @@ mod test {
                     Caller: Box::new(ExpressionStatement::Identifier("abc".to_string())),
                     Args: vec![ExpressionStatement::Identifier("def".to_string())],
                 })],
+            },
+            Testcase {
+                name: "group expression",
+                input: String::from("((def))"),
+                expected: vec![Statement::Expression(ExpressionStatement::Group(Box::new(
+                    ExpressionStatement::Group(Box::new(ExpressionStatement::Identifier(
+                        "def".to_string(),
+                    ))),
+                )))],
             },
         ];
         for testcase in testcases.into_iter() {

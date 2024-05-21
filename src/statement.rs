@@ -31,6 +31,7 @@ pub enum ExpressionStatement {
         Caller: Box<ExpressionStatement>,
         Args: Vec<ExpressionStatement>,
     },
+    Group(Box<ExpressionStatement>),
     Identifier(String),
     Num(f64),
     Bool(bool),
