@@ -28,8 +28,8 @@ pub enum ExpressionStatement {
         body: Vec<Statement>,
     },
     Call {
-        Caller: Box<ExpressionStatement>,
-        Args: Vec<ExpressionStatement>,
+        caller: Box<ExpressionStatement>,
+        args: Vec<ExpressionStatement>,
     },
     Group(Box<ExpressionStatement>),
     Identifier(String),

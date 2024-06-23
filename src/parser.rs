@@ -37,14 +37,12 @@ impl Parser {
     }
 
     pub fn parse_program(&mut self) -> Result<Program, String> {
-        let mut program = Program {
-            statements: vec![],
-        };
+        let mut program = Program { statements: vec![] };
 
         while self.cur_token != Token::Eof {
             match self.parse_statement() {
                 Ok(statement) => program.statements.push(statement),
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
 
             // Skip through last token from parsed statement
@@ -167,7 +165,9 @@ impl Parser {
         };
 
         // Match Infix Parse
-        while self.peek_token != Token::Semicolon && precedence < Self::get_precedence(&self.peek_token) {
+        while self.peek_token != Token::Semicolon
+            && precedence < Self::get_precedence(&self.peek_token)
+        {
             left = match &self.peek_token {
                 Token::Plus
                 | Token::Minus
@@ -226,8 +226,8 @@ impl Parser {
                     self.next_token();
 
                     ExpressionStatement::Call {
-                        Caller: Box::new(left),
-                        Args: args,
+                        caller: Box::new(left),
+                        args: args,
                     }
                 }
                 _ => return Ok(left),
@@ -547,8 +547,8 @@ mod test {
                 name: "call expression",
                 input: String::from("abc(def)"),
                 expected: vec![Statement::Expression(ExpressionStatement::Call {
-                    Caller: Box::new(ExpressionStatement::Identifier("abc".to_string())),
-                    Args: vec![ExpressionStatement::Identifier("def".to_string())],
+                    caller: Box::new(ExpressionStatement::Identifier("abc".to_string())),
+                    args: vec![ExpressionStatement::Identifier("def".to_string())],
                 })],
             },
             Testcase {
