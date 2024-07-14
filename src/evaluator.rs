@@ -1,91 +1,46 @@
+use crate::object::{Environment, Object};
 use crate::parser::Program;
 use crate::statement::{ExpressionStatement, ExpressionStatement::*, Statement::*};
 use crate::token::Token;
 use std::collections::HashMap;
-use std::env::var;
-use std::ops;
 
-pub struct Evaluator {
-    program: Program,
-}
-
-#[derive(Debug, Clone)]
-enum Object {
-    Number(f64),
-    String(String),
-    Null,
-}
-
-impl ops::Add for Object {
-    type Output = Result<Object, String>;
-
-    fn add(self, rhs: Self) -> Result<Object, String> {
-        return match self {
-            Self::Number(num1) => match rhs {
-                Self::Number(num2) => Ok(Self::Number(num1 + num2)),
-                Self::String(s2) => Ok(Self::String(format!("{}{}", num1, s2))),
-                Self::Null => return Err(format!("Invalid value rhs = NULL"))
-            },
-            Self::String(s1) => match rhs {
-                Self::Number(num2) => Ok(Self::String(format!("{}{}", s1, num2))),
-                Self::String(s2) => Ok(Self::String(s1 + &s2)),
-                Self::Null => return Err(format!("Invalid value rhs = NULL"))
-            },
-            Self::Null => return Err(format!("Invalud value lhs = NULL"))
-        }
-    }
-}
-
-impl ops::Sub for Object {
-    type Output = Result<Object, String>;
-
-    fn sub(self, rhs: Self) -> Result<Object, String> {
-        return match self {
-            Self::Number(num1) => match rhs {
-                Self::Number(num2) => Ok(Self::Number(num1 - num2)),
-                _ => return Err(format!("Invalid value rhs = {:?}", self))
-            },
-            _ => return Err(format!("Invalud value lhs = {:?}", self))
-        }
-    }
-}
-
-struct Environment {
-    variables: HashMap<String, Object>,
-}
+pub struct Evaluator {}
 
 impl Evaluator {
-    fn new(program: Program) -> Self {
-        return Evaluator { program };
+    pub fn new() -> Self {
+        return Self {};
     }
 
-    fn eval(self, environment: Environment){
-        for statement in self.program.statements.into_iter() {
+    pub fn eval(&self, program: Program, environment: &mut Environment) -> Object {
+        let mut last_v = Object::Null;
+        for statement in program.statements.iter() {
             match statement {
                 Let(variable_name, value) => {
-                    match value {
-                        None => environment.variables.insert(variable_name, Object::Null),
+                    let v = match value {
+                        None => Object::Null,
                         Some(expr) => {
                             let v = self.eval_expression(&environment, &expr);
                             match v {
                                 Err(e) => panic!("{}", e),
-                                Ok(v) => {
-                                    environment.variables.insert(variable_name, v);
-                                }
+                                Ok(v) => v,
                             }
                         }
-                    }
-                    let mut v = Object::Null;
-                    if value
-                    // environment.variables.insert(variable_name, Object)
+                    };
+                    last_v = v.clone();
+                    environment.variables.insert(variable_name.clone(), v);
                 }
                 Return(return_value) => {}
                 Expression(expr_statement) => {}
             }
         }
+        return last_v;
     }
 
-    fn eval_expression(&self, environment: &Environment, expr: &ExpressionStatement) -> Result<Object, String> {
+    fn eval_expression(
+        &self,
+        environment: &Environment,
+        expr: &ExpressionStatement,
+    ) -> Result<Object, String> {
         match expr {
             Prefix { operator, right } => {
                 let mut v = self.eval_expression(environment, right)?;
@@ -133,9 +88,9 @@ impl Evaluator {
                 match *operator {
                     Token::Plus => lhs + rhs,
                     Token::Minus => lhs - rhs,
-                    _ => return Err(format!("Invalid infix operator {:?}", operator))
+                    _ => return Err(format!("Invalid infix operator {:?}", operator)),
                 }
-            },
+            }
             If {
                 condition,
                 outcome,
@@ -144,11 +99,9 @@ impl Evaluator {
             Fn { args, body } => Err("Unimplemented".to_string()),
             Call { caller, args } => Err("Unimplemented".to_string()),
             Group(expr) => self.eval_expression(environment, expr),
-            Identifier(s) => {
-                match environment.variables.get(s) {
-                    Some(v) => Ok(v.to_owned()),
-                    None => Err(format!("Undefined variable {}", s)),
-                }
+            Identifier(s) => match environment.variables.get(s) {
+                Some(v) => Ok(v.to_owned()),
+                None => Err(format!("Undefined variable {}", s)),
             },
             Num(num) => Ok(Object::Number(*num)),
             Bool(b) => {
@@ -163,8 +116,39 @@ impl Evaluator {
 }
 
 mod test {
-	use super::*;
+    use crate::{evaluator, lexer, parser};
 
-	#[test]
-	fn test_evaluator() {}
+    use super::*;
+
+    #[test]
+    fn test_evaluator() {
+        struct Testcase<'a> {
+            name: &'a str,
+            input: String,
+            expected: Object,
+        }
+        let testcases: Vec<Testcase> = vec![Testcase {
+            name: "evaluate some add operations",
+            input: String::from(
+                "let a = 5",
+            ),
+            expected: Object::Number(5.0),
+        }];
+
+        for testcase in testcases.into_iter() {
+            let evaluator = Evaluator::new();
+            let mut env = Environment::new();
+            let lexer = lexer::Lexer::new(&testcase.input);
+            let mut parser = parser::Parser::new(lexer);
+            let program = match parser.parse_program() {
+                Err(e) => {
+                    println!("There was error during parsing, err={:?}", e);
+                    Program { statements: vec![] }
+                }
+                Ok(program) => program,
+            };
+            let v = evaluator.eval(program, &mut env);
+            assert_eq!(v, testcase.expected);
+        }
+    }
 }
