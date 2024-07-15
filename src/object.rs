@@ -1,5 +1,8 @@
+use std::borrow::BorrowMut;
 use std::collections::HashMap;
-use std::ops;
+use std::ops::{self, DerefMut};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Object {
@@ -45,13 +48,13 @@ impl ops::Sub for Object {
 
 pub struct Environment {
     pub variables: HashMap<String, Object>,
-    pub outer: Option<Environment>,
+    pub outer: Option<Rc<RefCell<Environment>>>,
     pub in_function: bool,
 }
 
 impl Environment {
-    pub fn new(outer_option: Option<&Environment>) -> Self {
-        match outer_option {
+    pub fn new(outer_option: Option<Rc<RefCell<Environment>>>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(match outer_option {
             None => Self {
                 variables: HashMap::new(),
                 outer: None,
@@ -59,9 +62,9 @@ impl Environment {
             },
             Some(outer_env) => Self {
                 variables: HashMap::new(),
-                outer: Some(Box::outer_env),
+                outer: Some(outer_env),
                 in_function: false,
             },
-        }
+        }))
     }
 }

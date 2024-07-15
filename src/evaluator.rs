@@ -2,7 +2,10 @@ use crate::object::{Environment, Object};
 use crate::parser::Program;
 use crate::statement::{ExpressionStatement::{self, *}, Statement::{self, *}};
 use crate::token::Token;
+
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub struct Evaluator {}
 
@@ -11,7 +14,7 @@ impl Evaluator {
         return Self {};
     }
 
-    pub fn eval(&self, program: Program, environment: &mut Environment) -> Result<Object, String> {
+    pub fn eval(&self, program: Program, mut environment: Rc<RefCell<Environment>>) -> Result<Object, String> {
         let mut last_v = Object::Null;
         for statement in program.statements.iter() {
             match statement {
@@ -19,7 +22,7 @@ impl Evaluator {
                     let v = match value {
                         None => Object::Null,
                         Some(expr) => {
-                            let v = self.eval_expression(&environment, &expr);
+                            let v = self.eval_expression(environment.clone(), &expr);
                             match v {
                                 Err(e) => return Err(e),
                                 Ok(v) => v,
@@ -27,12 +30,12 @@ impl Evaluator {
                         }
                     };
                     last_v = v.clone();
-                    environment.variables.insert(variable_name.clone(), v);
+                    environment.borrow_mut().variables.insert(variable_name.clone(), v);
                 }
                 Return(_) => {
                     return Err("'return' outside function".to_string());
                 }
-                Expression(expr) => match self.eval_expression(&environment, &expr) {
+                Expression(expr) => match self.eval_expression(environment.clone(), &expr) {
                     Ok(obj) => {
                         match obj {
                             Object::Return(_) => return Err("'return' outside function".to_string()),
@@ -47,7 +50,7 @@ impl Evaluator {
         return Ok(last_v);
     }
 
-    pub fn eval_block(&self, block: &Vec<Statement>, environment: &mut Environment) -> Result<Object, String> {
+    pub fn eval_block(&self, block: &Vec<Statement>, environment: Rc<RefCell<Environment>>) -> Result<Object, String> {
         let mut last_v = Object::Null;
         for statement in block.into_iter() {
             match statement {
@@ -55,7 +58,7 @@ impl Evaluator {
                     let v = match value {
                         None => Object::Null,
                         Some(expr) => {
-                            let v = self.eval_expression(environment, expr);
+                            let v = self.eval_expression(environment.clone(), expr);
                             match v {
                                 Err(e) => return Err(e),
                                 Ok(v) => v,
@@ -63,29 +66,29 @@ impl Evaluator {
                         }
                     };
                     last_v = v.clone();
-                    environment.variables.insert(variable_name.clone(), v);
+                    environment.borrow_mut().variables.insert(variable_name.clone(), v);
                 }
                 Return(return_value) => {
                     let v = match return_value {
                         None => Object::Null,
                         Some(expr) => {
-                            let v = self.eval_expression(environment, expr);
+                            let v = self.eval_expression(environment.clone(), expr);
                             match v {
                                 Ok(obj) => obj,
                                 Err(e) => return Err(e),
                             }
                         }
                     };
-                    if environment.in_function {
+                    if environment.borrow().in_function {
                         return Ok(v)
                     }
                     return Ok(Object::Return(Box::new(v)))
                 }
-                Expression(expr) => match self.eval_expression(environment, expr) {
+                Expression(expr) => match self.eval_expression(environment.clone(), expr) {
                     Ok(obj) => {
                         match obj {
                             Object::Return(obj) => {
-                                if environment.in_function {
+                                if environment.borrow().in_function {
                                     return Ok(*obj)
                                 }
 
@@ -104,7 +107,7 @@ impl Evaluator {
 
     fn eval_expression(
         &self,
-        environment: &Environment,
+        environment: Rc<RefCell<Environment>>,
         expr: &ExpressionStatement,
     ) -> Result<Object, String> {
         match expr {
@@ -149,8 +152,8 @@ impl Evaluator {
                 operator,
                 right,
             } => {
-                let lhs = self.eval_expression(environment, left)?;
-                let rhs = self.eval_expression(environment, right)?;
+                let lhs = self.eval_expression(environment.clone(), left)?;
+                let rhs = self.eval_expression(environment.clone(), right)?;
                 match *operator {
                     Token::Plus => lhs + rhs,
                     Token::Minus => lhs - rhs,
@@ -162,16 +165,16 @@ impl Evaluator {
                 outcome,
                 alternate,
             } => {
-                let cond = self.eval_expression(&condition, &expr)?;
+                let cond = self.eval_expression(Environment::new(Some(environment.clone())), &condition)?;
                 match cond {
-                    Num(1.0) => self.eval_block(outcome, &mut Environment::new(Some(environment))),
-                    _ => 
+                    Object::Number(1.0) => self.eval_block(outcome,  Environment::new(Some(environment.clone()))),
+                    _ => self.eval_block(alternate,  Environment::new(Some(environment.clone()))),
                 }
             },
             Fn { args, body } => Err("Unimplemented".to_string()),
             Call { caller, args } => Err("Unimplemented".to_string()),
             Group(expr) => self.eval_expression(environment, expr),
-            Identifier(s) => match environment.variables.get(s) {
+            Identifier(s) => match environment.borrow().variables.get(s) {
                 Some(v) => Ok(v.to_owned()),
                 None => Err(format!("Undefined variable {}", s)),
             },
@@ -217,7 +220,7 @@ mod test {
                 }
                 Ok(program) => program,
             };
-            let v = evaluator.eval(program, &mut env);
+            let v = evaluator.eval(program, env.clone());
             assert_eq!(v.is_ok(), true);
             assert_eq!(v.unwrap(), testcase.expected);
         }

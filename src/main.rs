@@ -28,7 +28,7 @@ fn main() {
                     }
                     Ok(program) => program,
                 };
-                match evaluator.eval(program, &mut env) {
+                match evaluator.eval(program, env.clone()) {
                     Ok(v) => println!("{:?}", v),
                     Err(e) => println!("There was unexpected error, err={:?}", e),
                 }
