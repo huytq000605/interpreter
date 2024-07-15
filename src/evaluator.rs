@@ -25,6 +25,10 @@ impl Evaluator {
         for statement in program.statements.iter() {
             match statement {
                 Let(variable_name, value) => {
+                    if environment.borrow().variables.contains_key(variable_name) {
+                        return Err(format!("{variable_name} is initialized"))
+                    }
+
                     let v = match value {
                         None => Object::Null,
                         Some(expr) => {
@@ -70,6 +74,10 @@ impl Evaluator {
         for statement in block.into_iter() {
             match statement {
                 Let(variable_name, value) => {
+                    if environment.borrow().variables.contains_key(variable_name) {
+                        return Err(format!("{variable_name} is initialized"))
+                    }
+
                     let v = match value {
                         None => Object::Null,
                         Some(expr) => {
@@ -186,9 +194,7 @@ impl Evaluator {
                 let cond =
                     self.eval_expression(Environment::new(Some(environment.clone())), &condition)?;
                 match cond {
-                    Object::Number(1.0) => {
-                        self.eval_block(outcome, Environment::new(Some(environment.clone())))
-                    }
+                    Object::Number(1.0) => self.eval_block(outcome, Environment::new(Some(environment.clone()))),
                     _ => self.eval_block(alternate, Environment::new(Some(environment.clone()))),
                 }
             }
