@@ -433,11 +433,11 @@ mod test {
             Testcase {
                 name: "let and return",
                 input: String::from(
-                    "let a = 6;
+                    "let a = 6.5;
                     return 5",
                 ),
                 expected: vec![
-                    Statement::Let("a".to_string(), Some(ExpressionStatement::Num(6 as f64))),
+                    Statement::Let("a".to_string(), Some(ExpressionStatement::Num(6.5 as f64))),
                     Statement::Return(Some(ExpressionStatement::Num(5 as f64))),
                 ],
             },

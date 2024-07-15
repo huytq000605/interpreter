@@ -64,7 +64,7 @@ impl Lexer {
             '{' => Token::LCurlyBracket,
             '}' => Token::RCurlyBracket,
 
-            '1'..='9' => {
+            '0'..='9' => {
                 let mut num = String::from(self.cur_char);
                 loop {
                     let next_char = self.peek_char();

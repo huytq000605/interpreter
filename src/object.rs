@@ -1,8 +1,7 @@
-use std::borrow::BorrowMut;
-use std::collections::HashMap;
-use std::ops::{self, DerefMut};
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::ops;
+use std::rc::Rc;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Object {
