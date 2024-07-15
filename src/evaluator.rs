@@ -1,6 +1,6 @@
 use crate::object::{Environment, Object};
 use crate::parser::Program;
-use crate::statement::{ExpressionStatement, ExpressionStatement::*, Statement::*};
+use crate::statement::{ExpressionStatement::{self, *}, Statement::{self, *}};
 use crate::token::Token;
 use std::collections::HashMap;
 
@@ -11,7 +11,7 @@ impl Evaluator {
         return Self {};
     }
 
-    pub fn eval(&self, program: Program, environment: &mut Environment) -> Object {
+    pub fn eval(&self, program: Program, environment: &mut Environment) -> Result<Object, String> {
         let mut last_v = Object::Null;
         for statement in program.statements.iter() {
             match statement {
@@ -21,7 +21,7 @@ impl Evaluator {
                         Some(expr) => {
                             let v = self.eval_expression(&environment, &expr);
                             match v {
-                                Err(e) => panic!("{}", e),
+                                Err(e) => return Err(e),
                                 Ok(v) => v,
                             }
                         }
@@ -29,11 +29,77 @@ impl Evaluator {
                     last_v = v.clone();
                     environment.variables.insert(variable_name.clone(), v);
                 }
-                Return(return_value) => {}
-                Expression(expr_statement) => {}
+                Return(_) => {
+                    return Err("'return' outside function".to_string());
+                }
+                Expression(expr) => match self.eval_expression(&environment, &expr) {
+                    Ok(obj) => {
+                        match obj {
+                            Object::Return(_) => return Err("'return' outside function".to_string()),
+                            _ => {}
+                        }
+                        last_v = obj;
+                    }
+                    Err(e) => return Err(e),
+                },
             }
         }
-        return last_v;
+        return Ok(last_v);
+    }
+
+    pub fn eval_block(&self, block: &Vec<Statement>, environment: &mut Environment) -> Result<Object, String> {
+        let mut last_v = Object::Null;
+        for statement in block.into_iter() {
+            match statement {
+                Let(variable_name, value) => {
+                    let v = match value {
+                        None => Object::Null,
+                        Some(expr) => {
+                            let v = self.eval_expression(environment, expr);
+                            match v {
+                                Err(e) => return Err(e),
+                                Ok(v) => v,
+                            }
+                        }
+                    };
+                    last_v = v.clone();
+                    environment.variables.insert(variable_name.clone(), v);
+                }
+                Return(return_value) => {
+                    let v = match return_value {
+                        None => Object::Null,
+                        Some(expr) => {
+                            let v = self.eval_expression(environment, expr);
+                            match v {
+                                Ok(obj) => obj,
+                                Err(e) => return Err(e),
+                            }
+                        }
+                    };
+                    if environment.in_function {
+                        return Ok(v)
+                    }
+                    return Ok(Object::Return(Box::new(v)))
+                }
+                Expression(expr) => match self.eval_expression(environment, expr) {
+                    Ok(obj) => {
+                        match obj {
+                            Object::Return(obj) => {
+                                if environment.in_function {
+                                    return Ok(*obj)
+                                }
+
+                                return Ok(Object::Return(obj))
+                            },
+                            _ => {}
+                        }
+                        last_v = obj;
+                    }
+                    Err(e) => return Err(e),
+                },
+            }
+        }
+        Ok(last_v)
     }
 
     fn eval_expression(
@@ -95,7 +161,13 @@ impl Evaluator {
                 condition,
                 outcome,
                 alternate,
-            } => return Err("Unimplemented".to_string()),
+            } => {
+                let cond = self.eval_expression(&condition, &expr)?;
+                match cond {
+                    Num(1.0) => self.eval_block(outcome, &mut Environment::new(Some(environment))),
+                    _ => 
+                }
+            },
             Fn { args, body } => Err("Unimplemented".to_string()),
             Call { caller, args } => Err("Unimplemented".to_string()),
             Group(expr) => self.eval_expression(environment, expr),
@@ -129,15 +201,13 @@ mod test {
         }
         let testcases: Vec<Testcase> = vec![Testcase {
             name: "evaluate some add operations",
-            input: String::from(
-                "let a = 5",
-            ),
+            input: String::from("let a = 5"),
             expected: Object::Number(5.0),
         }];
 
         for testcase in testcases.into_iter() {
             let evaluator = Evaluator::new();
-            let mut env = Environment::new();
+            let mut env = Environment::new(None);
             let lexer = lexer::Lexer::new(&testcase.input);
             let mut parser = parser::Parser::new(lexer);
             let program = match parser.parse_program() {
@@ -148,7 +218,8 @@ mod test {
                 Ok(program) => program,
             };
             let v = evaluator.eval(program, &mut env);
-            assert_eq!(v, testcase.expected);
+            assert_eq!(v.is_ok(), true);
+            assert_eq!(v.unwrap(), testcase.expected);
         }
     }
 }

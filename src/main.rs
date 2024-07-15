@@ -13,7 +13,7 @@ use parser::{Parser, Program};
 fn main() {
     print!("---huytq intepreter---");
     let evaluator = evaluator::Evaluator::new();
-    let mut env = object::Environment::new();
+    let mut env = object::Environment::new(None);
     loop {
         let mut input = String::new();
         match io::stdin().read_line(&mut input) {
@@ -28,8 +28,10 @@ fn main() {
                     }
                     Ok(program) => program,
                 };
-                let v = evaluator.eval(program, &mut env);
-                println!("{:?}", v);
+                match evaluator.eval(program, &mut env) {
+                    Ok(v) => println!("{:?}", v),
+                    Err(e) => println!("There was unexpected error, err={:?}", e),
+                }
             }
         }
     }
