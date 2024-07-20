@@ -66,4 +66,19 @@ impl Environment {
             },
         }))
     }
+
+    pub fn get(&self, variable_name: &str) -> Result<Object, String> {
+        if self.variables.contains_key(variable_name) {
+            return Ok(self.variables.get(variable_name).unwrap().to_owned());
+        }
+
+        if let Some(outer_env) = &self.outer {
+            match outer_env.borrow().get(variable_name) {
+                Ok(obj) => return Ok(obj),
+                Err(e) => return Err(e),
+            }
+        }
+
+        return Err(format!("undefined variable {:?}", variable_name));
+    }
 }

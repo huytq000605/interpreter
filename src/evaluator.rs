@@ -26,10 +26,10 @@ impl Evaluator {
             match statement {
                 Let(variable_name, value) => {
                     if environment.borrow().variables.contains_key(variable_name) {
-                        return Err(format!("{variable_name} is initialized"))
+                        return Err(format!("{variable_name} is initialized"));
                     }
 
-                    let v = match value {
+                    let mut v = match value {
                         None => Object::Null,
                         Some(expr) => {
                             let v = self.eval_expression(environment.clone(), &expr);
@@ -75,7 +75,7 @@ impl Evaluator {
             match statement {
                 Let(variable_name, value) => {
                     if environment.borrow().variables.contains_key(variable_name) {
-                        return Err(format!("{variable_name} is initialized"))
+                        return Err(format!("{variable_name} is initialized"));
                     }
 
                     let v = match value {
@@ -183,6 +183,10 @@ impl Evaluator {
                 match *operator {
                     Token::Plus => lhs + rhs,
                     Token::Minus => lhs - rhs,
+                    // Token::Gt => lhs > rhs,
+                    // Token::Gte => lhs >= rhs,
+                    // Token::Lt => lhs < rhs,
+                    // Token::Lte => lhs <= rhs,
                     _ => return Err(format!("Invalid infix operator {:?}", operator)),
                 }
             }
@@ -194,16 +198,18 @@ impl Evaluator {
                 let cond =
                     self.eval_expression(Environment::new(Some(environment.clone())), &condition)?;
                 match cond {
-                    Object::Number(1.0) => self.eval_block(outcome, Environment::new(Some(environment.clone()))),
-                    _ => self.eval_block(alternate, Environment::new(Some(environment.clone()))),
+                    Object::Number(0.0) => {
+                        self.eval_block(alternate, Environment::new(Some(environment.clone())))
+                    }
+                    _ => self.eval_block(outcome, Environment::new(Some(environment.clone()))),
                 }
             }
             Fn { args, body } => Err("Unimplemented".to_string()),
             Call { caller, args } => Err("Unimplemented".to_string()),
             Group(expr) => self.eval_expression(environment, expr),
-            Identifier(s) => match environment.borrow().variables.get(s) {
-                Some(v) => Ok(v.to_owned()),
-                None => Err(format!("Undefined variable {}", s)),
+            Identifier(s) => match environment.borrow_mut().get(s) {
+                Ok(v) => Ok(v.to_owned()),
+                Err(e) => Err(e),
             },
             Num(num) => Ok(Object::Number(*num)),
             Bool(b) => {
@@ -228,11 +234,23 @@ mod test {
             input: String,
             expected: Object,
         }
-        let testcases: Vec<Testcase> = vec![Testcase {
-            name: "evaluate some add operations",
-            input: String::from("let a = 5"),
-            expected: Object::Number(5.0),
-        }];
+        let testcases: Vec<Testcase> = vec![
+            Testcase {
+                name: "evaluate some add operations",
+                input: String::from("let a = 5"),
+                expected: Object::Number(5.0),
+            },
+            Testcase {
+                name: "evaluate if",
+                input: String::from(
+                    "let a = 5;
+                if(a - 2) {
+                    6
+                }",
+                ),
+                expected: Object::Number(6.0),
+            },
+        ];
 
         for testcase in testcases.into_iter() {
             let evaluator = Evaluator::new();
@@ -247,7 +265,7 @@ mod test {
                 Ok(program) => program,
             };
             let v = evaluator.eval(program, env.clone());
-            assert_eq!(v.is_ok(), true);
+            assert_eq!(v.is_ok(), true, "expected v to be ok, v={:?}", v);
             assert_eq!(v.unwrap(), testcase.expected);
         }
     }
